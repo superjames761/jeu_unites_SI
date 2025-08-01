@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Little Alchemy SI</title>
+    <!-- Tailwind CSS CDN pour un style moderne et responsif -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .unit-card {
+            cursor: pointer;
+            transition: transform 0.1s ease, box-shadow 0.2s ease;
+        }
+        .unit-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .unit-card.selected {
+            border: 2px solid #3b82f6;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+        }
+        .drop-zone {
+            transition: background-color 0.2s ease, border-color 0.2s ease;
+        }
+        .drop-zone.active {
+            background-color: #d1fae5;
+            border-color: #34d399;
+        }
+        .category-header {
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        .category-header:hover {
+            background-color: #e5e7eb;
+        }
+        .units-container {
+            max-height: 1000px; /* Grande valeur pour permettre la transition */
+            overflow: hidden;
+            transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+            opacity: 1;
+        }
+        .units-container.collapsed {
+            max-height: 0;
+            opacity: 0;
+        }
+        .chevron-icon {
+            transition: transform 0.3s ease;
+        }
+        .chevron-icon.rotate {
+            transform: rotate(-90deg);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center p-4">
+
+    <main class="w-full max-w-5xl bg-white rounded-xl shadow-lg p-6 md:p-8">
+        <h1 class="text-3xl md:text-4xl font-bold text-center text-gray-800 mb-6">Little Alchemy SI</h1>
+        <p class="text-center text-gray-600 mb-8">Combinez les unités fondamentales du SI pour découvrir les unités dérivées !</p>
+        
+        <!-- Conteneur principal du jeu -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <!-- Liste des unités disponibles -->
+            <div class="lg:col-span-1 bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <h2 class="text-xl font-semibold mb-4 text-gray-700">Fiches d'unités</h2>
+                <div id="unit-count" class="text-center text-sm text-gray-500 mb-4"></div>
+                <div id="available-units" class="flex flex-col space-y-2 max-h-96 overflow-y-auto pr-2">
+                    <!-- Les catégories et unités seront injectées ici par JavaScript -->
+                </div>
+            </div>
+
+            <!-- Zone de combinaison et de résultat -->
+            <div class="lg:col-span-2 flex flex-col items-center bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <h2 class="text-xl font-semibold mb-4 text-gray-700">Zone de combinaison</h2>
+                <div class="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4 w-full">
+                    
+                    <!-- Zone de dépôt 1 -->
+                    <div id="drop-zone-1" class="drop-zone flex-1 h-32 w-full sm:w-auto bg-gray-200 border-2 border-dashed border-gray-400 rounded-lg flex items-center justify-center text-gray-500 font-medium p-2">
+                        Glissez une unité ici
+                    </div>
+                    
+                    <!-- Boutons d'opération -->
+                    <div class="flex sm:flex-col space-x-4 sm:space-x-0 sm:space-y-4">
+                        <button id="multiply-btn" class="bg-blue-500 text-white font-bold p-4 rounded-full shadow-lg hover:bg-blue-600 transition-colors transform hover:scale-110 active:scale-95 text-3xl aspect-square flex items-center justify-center">+</button>
+                        <button id="divide-btn" class="bg-blue-500 text-white font-bold p-4 rounded-full shadow-lg hover:bg-blue-600 transition-colors transform hover:scale-110 active:scale-95 text-3xl aspect-square flex items-center justify-center">÷</button>
+                    </div>
+
+                    <!-- Zone de dépôt 2 -->
+                    <div id="drop-zone-2" class="drop-zone flex-1 h-32 w-full sm:w-auto bg-gray-200 border-2 border-dashed border-gray-400 rounded-lg flex items-center justify-center text-gray-500 font-medium p-2">
+                        Glissez une autre unité ici
+                    </div>
+                </div>
+
+                <!-- Espace de résultat -->
+                <div id="result-space" class="mt-8 p-4 bg-gray-200 w-full min-h-24 rounded-lg flex flex-col justify-center items-center text-center">
+                    <p class="text-gray-600 font-medium">Le résultat de votre combinaison apparaîtra ici.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Boutons d'action en bas -->
+        <div class="mt-8 flex justify-center space-x-4">
+            <button id="reset-btn" class="bg-red-500 text-white font-semibold py-2 px-4 rounded-full shadow-lg hover:bg-red-600 transition-colors transform hover:scale-105 active:scale-95">Réinitialiser</button>
+            <button id="clear-drop-zones-btn" class="bg-gray-500 text-white font-semibold py-2 px-4 rounded-full shadow-lg hover:bg-gray-600 transition-colors transform hover:scale-105 active:scale-95">Vider la zone</button>
+        </div>
+
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // Définition des 7 unités de base
+            // Chaque unité est un tableau d'exposants correspondant à l'ordre [ m, kg, s, A, K, mol, cd ]
+            const baseUnits = {
+                '1': { symbol: '1', name: '1', exponents: [0, 0, 0, 0, 0, 0, 0], category: 'Base' },
+                'm': { symbol: 'm', name: 'Mètre', exponents: [1, 0, 0, 0, 0, 0, 0], category: 'Base' },
+                'kg': { symbol: 'kg', name: 'Kilogramme', exponents: [0, 1, 0, 0, 0, 0, 0], category: 'Base' },
+                's': { symbol: 's', name: 'Seconde', exponents: [0, 0, 1, 0, 0, 0, 0], category: 'Base' },
+                'A': { symbol: 'A', name: 'Ampère', exponents: [0, 0, 0, 1, 0, 0, 0], category: 'Base' },
+                'K': { symbol: 'K', name: 'Kelvin', exponents: [0, 0, 0, 0, 1, 0, 0], category: 'Base' },
+                'mol': { symbol: 'mol', name: 'Mole', exponents: [0, 0, 0, 0, 0, 1, 0], category: 'Base' },
+                'cd': { symbol: 'cd', name: 'Candela', exponents: [0, 0, 0, 0, 0, 0, 1], category: 'Base' }
+            };
+
+            // Base de données des unités dérivées, organisées par catégorie
+            const knownDerivedUnits = {
+                "Unités dérivées avec noms spéciaux": {
+                    // [m, kg, s, A, K, mol, cd]
+                    '0,0,-1,0,0,0,0': { symbol: 'Hz / Bq', name: 'Hertz / Becquerel (Fréquence, Radioactivité)' },
+                    '1,1,-2,0,0,0,0': { symbol: 'N', name: 'Newton (Force, Poids)' },
+                    '-1,1,-2,0,0,0,0': { symbol: 'Pa', name: 'Pascal (Pression, Contrainte)' },
+                    '2,1,-2,0,0,0,0': { symbol: 'J', name: 'Joule (Énergie, Travail, Chaleur)' },
+                    '2,1,-3,0,0,0,0': { symbol: 'W', name: 'Watt (Puissance, Flux énergétique)' },
+                    '0,0,1,1,0,0,0': { symbol: 'C', name: 'Coulomb (Charge électrique)' },
+                    '2,1,-3,-1,0,0,0': { symbol: 'V', name: 'Volt (Tension électrique, Différence de potentiel)' },
+                    '-2,-1,4,2,0,0,0': { symbol: 'F', name: 'Farad (Capacité électrique)' },
+                    '2,1,-3,-2,0,0,0': { symbol: 'Ω', name: 'Ohm (Résistance électrique, Impédance)' },
+                    '-2,-1,3,2,0,0,0': { symbol: 'S', name: 'Siemens (Conductance électrique)' },
+                    '2,1,-2,-1,0,0,0': { symbol: 'Wb', name: 'Weber (Flux magnétique)' },
+                    '0,1,-2,-1,0,0,0': { symbol: 'T', name: 'Tesla (Induction magnétique)' },
+                    '2,1,-2,-2,0,0,0': { symbol: 'H', name: 'Henry (Inductance)' },
+                    '0,0,0,0,1,0,0': { symbol: '°C', name: 'degré Celsius (Température)' },
+                    '0,0,0,0,0,0,1': { symbol: 'lm', name: 'Lumen (Flux lumineux)' },
+                    '-2,0,0,0,0,0,1': { symbol: 'lx', name: 'Lux (Éclairement lumineux)' },
+                    '2,0,-2,0,0,0,0': { symbol: 'Sv', name: 'Sievert (Équivalent de dose)' },
+                    '0,0,-1,0,0,1,0': { symbol: 'kat', name: 'Katal (Activité catalytique)' },
+                },
+                "Cinématique": {
+                    // [m, kg, s, A, K, mol, cd]
+                    '1,0,-1,0,0,0,0': { symbol: 'm/s', name: 'Mètre par seconde (Vitesse)' },
+                    '1,0,-2,0,0,0,0': { symbol: 'm/s²', name: 'Mètre par seconde carrée (Accélération)' },
+                    '1,0,-3,0,0,0,0': { symbol: 'm/s³', name: 'Mètre par seconde cubique (À-coup)' },
+                    '1,0,-4,0,0,0,0': { symbol: 'm/s⁴', name: 'Mètre par seconde puissance quatre (Secousse)' },
+                    '1,1,-3,0,0,0,0': { symbol: 'kg⋅m/s³', name: 'Kilogramme mètre par seconde cubique (Sursaut de force)' },
+                    '3,0,-1,0,0,0,0': { symbol: 'm³/s', name: 'Mètre cube par seconde (Débit volumique)' },
+                },
+                "Mécanique": {
+                    // [m, kg, s, A, K, mol, cd]
+                    '2,0,0,0,0,0,0': { symbol: 'm²', name: 'Mètre carré (Aire)' },
+                    '3,0,0,0,0,0,0': { symbol: 'm³', name: 'Mètre cube (Volume)' },
+                    '1,1,-1,0,0,0,0': { symbol: 'N⋅s', name: 'Newton-seconde (Quantité de mouvement, Impulsion)' },
+                    '2,1,-1,0,0,0,0': { symbol: 'N⋅m⋅s / J⋅s', name: 'Newton-mètre-seconde / Joule-seconde (Moment angulaire, Action)' },
+                    '2,1,-2,0,0,0,0': { symbol: 'N⋅m', name: 'Newton-mètre (Couple)' },
+                    '-1,0,0,0,0,0,0': { symbol: 'm⁻¹', name: 'Mètre réciproque (Nombre d\'onde, Courbure)' },
+                    '-2,1,0,0,0,0,0': { symbol: 'kg/m²', name: 'Kilogramme par mètre carré (Masse surfacique)' },
+                    '-3,1,0,0,0,0,0': { symbol: 'kg/m³', name: 'Kilogramme par mètre cube (Masse volumique, Densité)' },
+                    '3,-1,0,0,0,0,0': { symbol: 'm³/kg', name: 'Mètre cube par kilogramme (Volume massique)' },
+                    '2,0,-2,0,0,0,0': { symbol: 'J/kg', name: 'Joule par kilogramme (Énergie massique)' },
+                    '-1,1,-2,0,0,0,0': { symbol: 'J/m³', name: 'Joule par mètre cube (Densité d\'énergie)' },
+                    '0,1,-2,0,0,0,0': { symbol: 'N/m', name: 'Newton par mètre (Tension de surface, Raideur)' },
+                    '0,1,-3,0,0,0,0': { symbol: 'W/m²', name: 'Watt par mètre carré (Densité de flux thermique, Irradiance)' },
+                    '2,0,-1,0,0,0,0': { symbol: 'm²/s', name: 'Mètre carré par seconde (Viscosité cinématique, Diffusivité thermique)' },
+                    '-1,1,-1,0,0,0,0': { symbol: 'Pa⋅s', name: 'Pascal-seconde (Viscosité dynamique)' },
+                    '-1,1,0,0,0,0,0': { symbol: 'kg/m', name: 'Kilogramme par mètre (Masse linéaire)' },
+                    '0,1,-1,0,0,0,0': { symbol: 'kg/s', name: 'Kilogramme par seconde (Débit massique)' },
+                    '-2,1,-3,0,0,0,0': { symbol: 'W/(sr⋅m²)', name: 'Watt par stéradian-mètre carré (Radiance)' },
+                    '-1,1,-3,0,0,0,0': { symbol: 'W/(sr⋅m³)', name: 'Watt par stéradian-mètre cube (Radiance spectrale volumique)' },
+                    '1,1,-3,0,0,0,0': { symbol: 'W/m', name: 'Watt par mètre (Puissance spectrale)' },
+                    '2,0,-3,0,0,0,0': { symbol: 'Gy/s', name: 'Gray par seconde (Débit de dose absorbée)' },
+                    '-2,0,0,0,0,0,0': { symbol: 'm/m³', name: 'Mètre par mètre cube (Rendement énergétique)' },
+                    '-1,1,-3,0,0,0,0': { symbol: 'W/m³', name: 'Watt par mètre cube (Irradiance spectrale)' },
+                    '0,0,2,-1,-1,0,0': { symbol: 'Pa⁻¹', name: 'Pascal réciproque (Compressibilité)' },
+                    '0,1,-2,0,0,0,0': { symbol: 'J/m²', name: 'Joule par mètre carré (Exposition énergétique)' },
+                    '2,1,0,0,0,0,0': { symbol: 'kg⋅m²', name: 'Kilogramme mètre carré (Moment d\'inertie)' },
+                    '2,0,-1,0,0,0,0': { symbol: 'N⋅m⋅s/kg', name: 'Newton mètre seconde par kilogramme (Moment angulaire massique)' },
+                },
+                "Chimie": {
+                    // [m, kg, s, A, K, mol, cd]
+                    '-3,0,0,0,0,1,0': { symbol: 'mol/m³', name: 'Mole par mètre cube (Molarité, Concentration de quantité de matière)' },
+                    '3,0,0,0,0,-1,0': { symbol: 'm³/mol', name: 'Mètre cube par mole (Volume molaire)' },
+                    '2,1,-2,-1,0,-1,0': { symbol: 'J/(K⋅mol)', name: 'Joule par kelvin-mole (Capacité thermique molaire, Entropie molaire)' },
+                    '2,1,-2,0,0,-1,0': { symbol: 'J/mol', name: 'Joule par mole (Énergie molaire)' },
+                    '-1,-1,3,2,0,-1,0': { symbol: 'S⋅m²/mol', name: 'Siemens mètre carré par mole (Conductivité molaire)' },
+                    '0,-1,0,0,0,1,0': { symbol: 'mol/kg', name: 'Mole par kilogramme (Molalité)' },
+                    '0,1,0,0,0,-1,0': { symbol: 'kg/mol', name: 'Kilogramme par mole (Masse molaire)' },
+                    '3,0,-1,0,0,-1,0': { symbol: 'm³/(mol⋅s)', name: 'Mètre cube par mole-seconde (Efficacité catalytique)' },
+                },
+                "Électromagnétisme": {
+                    // [m, kg, s, A, K, mol, cd]
+                    '-2,0,1,1,0,0,0': { symbol: 'C/m²', name: 'Coulomb par mètre carré (Déplacement électrique, Densité de polarisation)' },
+                    '-3,0,1,1,0,0,0': { symbol: 'C/m³', name: 'Coulomb par mètre cube (Densité de charge électrique)' },
+                    '-2,0,0,1,0,0,0': { symbol: 'A/m²', name: 'Ampère par mètre carré (Densité de courant électrique)' },
+                    '-3,-1,3,2,0,0,0': { symbol: 'S/m', name: 'Siemens par mètre (Conductivité électrique)' },
+                    '-3,-1,4,2,0,0,0': { symbol: 'F/m', name: 'Farad par mètre (Permittivité)' },
+                    '1,1,-2,-2,0,0,0': { symbol: 'H/m', name: 'Henry par mètre (Perméabilité magnétique)' },
+                    '1,1,-3,-1,0,0,0': { symbol: 'V/m', name: 'Volt par mètre (Champ électrique)' },
+                    '-1,0,0,1,0,0,0': { symbol: 'A/m', name: 'Ampère par mètre (Magnétisation, Champ magnétique)' },
+                    '0,-1,1,1,0,0,0': { symbol: 'C/kg', name: 'Coulomb par kilogramme (Exposition)' },
+                    '3,1,-3,-2,0,0,0': { symbol: 'Ω⋅m', name: 'Ohm-mètre (Résistivité)' },
+                    '-1,0,1,1,0,0,0': { symbol: 'C/m', name: 'Coulomb par mètre (Densité de charge linéaire)' },
+                    '2,0,0,1,0,0,0': { symbol: 'J/T', name: 'Joule par tesla (Moment dipolaire magnétique)' },
+                    '-1,0,2,1,0,0,0': { symbol: 'm²/(V⋅s)', name: 'Mètre carré par volt-seconde (Mobilité des électrons)' },
+                    '-2,-1,2,2,0,0,0': { symbol: 'H⁻¹', name: 'Henry réciproque (Réluctance magnétique)' },
+                    '1,1,-2,-1,0,0,0': { symbol: 'Wb/m', name: 'Weber par mètre (Potentiel vecteur magnétique)' },
+                    '3,1,-2,-1,0,0,0': { symbol: 'Wb⋅m', name: 'Weber-mètre (Moment magnétique)' },
+                    '1,1,-2,-1,0,0,0': { symbol: 'T⋅m', name: 'Tesla-mètre (Rigidité magnétique)' },
+                    '-1,-1,2,2,0,0,0': { symbol: 'm/H', name: 'Mètre par henry (Susceptibilité magnétique)' },
+                },
+                "Photométrie": {
+                    // [m, kg, s, A, K, mol, cd]
+                    '0,0,1,0,0,0,1': { symbol: 'lm⋅s', name: 'Lumen-seconde (Énergie lumineuse)' },
+                    '-2,0,1,0,0,0,1': { symbol: 'lx⋅s', name: 'Lux-seconde (Exposition lumineuse)' },
+                    '-2,0,0,0,0,0,1': { symbol: 'cd/m²', name: 'Candela par mètre carré (Luminance)' },
+                    '-2,-1,3,0,0,0,1': { symbol: 'lm/W', name: 'Lumen par watt (Efficacité lumineuse)' },
+                },
+                "Thermodynamique": {
+                    // [m, kg, s, A, K, mol, cd]
+                    '2,1,-2,0,0,0,0': { symbol: 'J/K', name: 'Joule par kelvin (Capacité thermique, Entropie)' },
+                    '2,0,-2,-1,0,0,0': { symbol: 'J/(kg⋅K)', name: 'Joule par kilogramme-kelvin (Capacité thermique massique, Entropie massique)' },
+                    '1,1,-3,-1,0,0,0': { symbol: 'W/(m⋅K)', name: 'Watt par mètre-kelvin (Conductivité thermique)' },
+                    '-2,-1,3,1,0,0,0': { symbol: 'K/W', name: 'Kelvin par watt (Résistance thermique)' },
+                    '0,0,0,-1,0,0,0': { symbol: 'K⁻¹', name: 'Kelvin réciproque (Coefficient de dilatation thermique)' },
+                    '-1,0,0,1,0,0,0': { symbol: 'K/m', name: 'Kelvin par mètre (Gradient de température)' },
+                }
+            };
+            
+            const availableUnitsDiv = document.getElementById('available-units');
+            const dropZone1 = document.getElementById('drop-zone-1');
+            const dropZone2 = document.getElementById('drop-zone-2');
+            const resultSpace = document.getElementById('result-space');
+            const multiplyBtn = document.getElementById('multiply-btn');
+            const divideBtn = document.getElementById('divide-btn');
+            const resetBtn = document.getElementById('reset-btn');
+            const clearDropZonesBtn = document.getElementById('clear-drop-zones-btn');
+            const unitCountDiv = document.getElementById('unit-count');
+
+            let availableUnits = {
+                'Base': Object.values(baseUnits)
+            };
+            
+            // Total des unités dérivées à découvrir pour le compteur global
+            const totalDerivedUnitsCount = Object.values(knownDerivedUnits).reduce((sum, category) => sum + Object.keys(category).length, 0);
+
+            let selectedUnit1 = null;
+            let selectedUnit2 = null;
+
+            // Fonction pour créer un élément d'unité dans le DOM
+            function createUnitElement(unit, isDiscovered = false) {
+                const unitCard = document.createElement('div');
+                // Ajuste l'opacité et le curseur pour les unités non découvertes
+                unitCard.className = `unit-card w-full p-3 bg-white border border-gray-300 rounded-lg shadow-sm flex items-center justify-between transition-all duration-200 ${isDiscovered ? 'hover:bg-gray-100' : 'opacity-70 cursor-not-allowed'}`;
+                unitCard.setAttribute('data-symbol', unit.symbol);
+                unitCard.setAttribute('data-exponents', unit.exponents);
+                unitCard.setAttribute('data-category', unit.category);
+                unitCard.setAttribute('data-name', unit.name);
+
+                const leftSide = document.createElement('div');
+                leftSide.className = 'flex flex-col';
+                
+                const symbolSpan = document.createElement('span');
+                symbolSpan.className = `text-lg font-bold ${isDiscovered ? 'text-gray-800' : 'text-gray-400'}`;
+                symbolSpan.textContent = isDiscovered ? unit.symbol : '???';
+                leftSide.appendChild(symbolSpan);
+                
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'text-sm text-gray-500';
+                nameSpan.textContent = unit.name;
+                leftSide.appendChild(nameSpan);
+
+                unitCard.appendChild(leftSide);
+
+                if (isDiscovered) {
+                    unitCard.onclick = () => {
+                        handleUnitSelection(unit);
+                    };
+                }
+                return unitCard;
+            }
+
+            // Gère la sélection d'une unité
+            function handleUnitSelection(unit) {
+                // Remove 'selected' class from previously selected units
+                const allUnitCards = document.querySelectorAll('.unit-card');
+                allUnitCards.forEach(card => card.classList.remove('selected'));
+
+                if (!selectedUnit1) {
+                    selectedUnit1 = unit;
+                    updateDropZone(dropZone1, unit);
+                } else if (!selectedUnit2) {
+                    selectedUnit2 = unit;
+                    updateDropZone(dropZone2, unit);
+                } else {
+                    // Si les deux zones sont pleines, on remplace la première
+                    selectedUnit1 = unit;
+                    selectedUnit2 = null;
+                    updateDropZone(dropZone1, unit);
+                    updateDropZone(dropZone2, null);
+                }
+            }
+
+            // Met à jour l'affichage de la zone de dépôt
+            function updateDropZone(zone, unit) {
+                if (unit) {
+                    zone.innerHTML = `<span class="text-2xl font-bold">${unit.symbol}</span><p class="text-sm text-gray-500">${unit.name}</p>`;
+                    zone.classList.remove('text-gray-500');
+                    zone.classList.add('bg-white', 'shadow-inner');
+                } else {
+                    zone.innerHTML = 'Glissez une unité ici';
+                    zone.classList.add('text-gray-500');
+                    zone.classList.remove('bg-white', 'shadow-inner');
+                }
+            }
+
+            // Gère l'opération de combinaison
+            function combineUnits(operation) {
+                if (!selectedUnit1 || !selectedUnit2) {
+                    displayResult('Veuillez sélectionner deux unités.', false);
+                    return;
+                }
+
+                const newExponents = selectedUnit1.exponents.map((exp, i) => {
+                    const exp2 = selectedUnit2.exponents[i];
+                    return operation === 'multiply' ? exp + exp2 : exp - exp2;
+                });
+
+                const newExponentsKey = newExponents.join(',');
+                
+                // Vérifie si la combinaison donne une unité dérivée connue
+                let discoveredUnit = null;
+                let discoveredCategory = null;
+                for (const category in knownDerivedUnits) {
+                    if (knownDerivedUnits[category][newExponentsKey]) {
+                        discoveredUnit = knownDerivedUnits[category][newExponentsKey];
+                        discoveredCategory = category;
+                        break;
+                    }
+                }
+
+                if (discoveredUnit) {
+                    const found = availableUnits[discoveredCategory]?.some(unit => unit.exponents.join(',') === newExponentsKey);
+                    if (!found) {
+                        const resultUnit = {
+                            symbol: discoveredUnit.symbol,
+                            name: discoveredUnit.name,
+                            exponents: newExponents,
+                            category: discoveredCategory
+                        };
+                        if (!availableUnits[discoveredCategory]) {
+                            availableUnits[discoveredCategory] = [];
+                        }
+                        availableUnits[discoveredCategory].push(resultUnit);
+                        updateAvailableUnits();
+                        updateUnitCount();
+                        displayResult(`Découverte ! ${discoveredUnit.symbol} (${discoveredUnit.name})`, true);
+                    } else {
+                        displayResult('Cette unité a déjà été découverte.', false);
+                    }
+                } else {
+                    displayResult('Cette combinaison ne donne pas d\'unité connue. Essayez autre chose !', false);
+                }
+                
+                clearDropZones();
+            }
+
+            // Affiche le résultat de la combinaison
+            function displayResult(message, success) {
+                resultSpace.innerHTML = `<p class="text-lg font-medium">${message}</p>`;
+                if (success) {
+                    resultSpace.classList.remove('bg-red-200', 'text-red-800');
+                    resultSpace.classList.add('bg-green-200', 'text-green-800');
+                } else {
+                    resultSpace.classList.remove('bg-green-200', 'text-green-800');
+                    resultSpace.classList.add('bg-red-200', 'text-red-800');
+                }
+                setTimeout(() => {
+                    resultSpace.innerHTML = '<p class="text-gray-600 font-medium">Le résultat de votre combinaison apparaîtra ici.</p>';
+                    resultSpace.classList.remove('bg-green-200', 'bg-red-200', 'text-green-800', 'text-red-800');
+                    resultSpace.classList.add('bg-gray-200');
+                }, 3000);
+            }
+
+            // Met à jour l'affichage des unités disponibles par catégorie
+            function updateAvailableUnits() {
+                availableUnitsDiv.innerHTML = '';
+
+                // Ajouter les unités de base d'abord
+                const baseCategoryDiv = document.createElement('div');
+                baseCategoryDiv.className = 'mt-2';
+                const baseHeader = document.createElement('div');
+                baseHeader.className = 'category-header flex items-center justify-between p-3 bg-gray-200 rounded-lg font-semibold text-gray-700';
+                baseHeader.innerHTML = `<span>Unités de base</span><span class="chevron-icon transform transition-transform duration-300">▼</span>`;
+                baseHeader.setAttribute('data-target', 'category-Base-container');
+                baseCategoryDiv.appendChild(baseHeader);
+
+                const baseUnitsContainer = document.createElement('div');
+                baseUnitsContainer.id = 'category-Base-container';
+                baseUnitsContainer.className = 'units-container mt-2 ml-4 space-y-2';
+                availableUnits['Base'].forEach(unit => {
+                    const unitElement = createUnitElement(unit, true);
+                    baseUnitsContainer.appendChild(unitElement);
+                });
+                baseCategoryDiv.appendChild(baseUnitsContainer);
+                availableUnitsDiv.appendChild(baseCategoryDiv);
+
+                // Ensuite, les catégories dérivées
+                for (const category in knownDerivedUnits) {
+                    const discoveredInCat = availableUnits[category] || [];
+                    const totalInCat = Object.keys(knownDerivedUnits[category]).length;
+                    
+                    const categoryDiv = document.createElement('div');
+                    categoryDiv.className = 'mt-4';
+
+                    const header = document.createElement('div');
+                    header.className = 'category-header flex items-center justify-between p-3 bg-gray-200 rounded-lg font-semibold text-gray-700';
+                    header.innerHTML = `<span>${category}</span><span class="flex items-center"><span class="mr-2 text-sm text-gray-500">${discoveredInCat.length} / ${totalInCat}</span><span class="chevron-icon transform transition-transform duration-300 rotate-90">▼</span></span>`;
+                    header.setAttribute('data-target', `category-${category.replace(/\s+/g, '-')}-container`);
+                    categoryDiv.appendChild(header);
+
+                    const unitsContainer = document.createElement('div');
+                    unitsContainer.id = `category-${category.replace(/\s+/g, '-')}-container`;
+                    unitsContainer.className = 'units-container mt-2 ml-4 space-y-2 collapsed';
+                    categoryDiv.appendChild(unitsContainer);
+
+                    // Peuple la catégorie
+                    for (const key in knownDerivedUnits[category]) {
+                        const unit = knownDerivedUnits[category][key];
+                        const fullUnit = { ...unit, exponents: key.split(',').map(Number), category: category };
+                        const isDiscovered = discoveredInCat.some(u => u.exponents.join(',') === key);
+                        const unitElement = createUnitElement(fullUnit, isDiscovered);
+                        unitsContainer.appendChild(unitElement);
+                    }
+                    availableUnitsDiv.appendChild(categoryDiv);
+                }
+            }
+
+            // Met à jour l'affichage du nombre d'unités découvertes
+            function updateUnitCount() {
+                const discoveredCount = Object.values(availableUnits).reduce((sum, cat) => sum + cat.length, 0) - Object.keys(baseUnits).length;
+                unitCountDiv.textContent = `Unités découvertes : ${discoveredCount} / ${totalDerivedUnitsCount}`;
+                updateAvailableUnits();
+                // Attache les écouteurs d'événements pour le pliage/dépliage
+                document.querySelectorAll('.category-header').forEach(header => {
+                    header.addEventListener('click', () => {
+                        const targetId = header.getAttribute('data-target');
+                        const targetElement = document.getElementById(targetId);
+                        const chevron = header.querySelector('.chevron-icon');
+                        if (targetElement) {
+                            targetElement.classList.toggle('collapsed');
+                            if (chevron) {
+                                chevron.classList.toggle('rotate');
+                            }
+                        }
+                    });
+                });
+            }
+            
+            // Vide les zones de dépôt et réinitialise les unités sélectionnées
+            function clearDropZones() {
+                selectedUnit1 = null;
+                selectedUnit2 = null;
+                updateDropZone(dropZone1, null);
+                updateDropZone(dropZone2, null);
+            }
+            
+            // Initialisation du jeu
+            function initGame() {
+                availableUnits = {
+                    'Base': Object.values(baseUnits)
+                };
+                updateAvailableUnits();
+                updateUnitCount();
+                clearDropZones();
+                displayResult('Le résultat de votre combinaison apparaîtra ici.', null);
+            }
+
+            // Écouteurs d'événements
+            multiplyBtn.addEventListener('click', () => combineUnits('multiply'));
+            divideBtn.addEventListener('click', () => combineUnits('divide'));
+            resetBtn.addEventListener('click', initGame);
+            clearDropZonesBtn.addEventListener('click', clearDropZones);
+
+            // Démarrage du jeu
+            initGame();
+        });
+    </script>
+</body>
+</html>
